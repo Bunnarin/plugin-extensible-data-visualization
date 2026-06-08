@@ -881,8 +881,6 @@ chartFlowRegistry.register('pivot-table', {
       options: ['count', 'sum', 'avg', 'min', 'max'],
       labelKey: 'Aggregation',
     },
-    { name: 'showRowTotals', valueType: 'boolean', default: false, labelKey: 'Show Row Totals' },
-    { name: 'showColTotals', valueType: 'boolean', default: false, labelKey: 'Show Column Totals' },
   ],
   autoFillRules: {},
   normalize: (builder = {}, _columns) => ({ type: 'pivot-table', ...builder }),
@@ -893,7 +891,5 @@ chartFlowRegistry.register('pivot-table', {
       rows: Array.isArray(builder.rows) ? builder.rows : builder.rows ? [builder.rows] : [],
       columns: Array.isArray(builder.columns) ? builder.columns : builder.columns ? [builder.columns] : [],
       values: Array.isArray(builder.values) ? builder.values : builder.values ? [builder.values] : [],
-      showRowTotals: !!builder.showRowTotals,
-      showColTotals: !!builder.showColTotals,
     }),
 });

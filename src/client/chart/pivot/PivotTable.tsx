@@ -41,10 +41,11 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       const grid = tsvString.split(/\r?\n/).map((line, rIndex) => line.split('\t').map((c, cIndex) => {
         let v: string | number = c.replace(/^"|"$/g, '');
         const isDataCell = rIndex >= headerRowCount && cIndex >= rowHeaderColCount;
-        
+
         if (isDataCell && (v === 'null' || v === '-')) v = 0;
+        else if (v === 'null') v = 'N/A';
         else if (v !== '' && !isNaN(Number(v))) v = Number(v);
-        
+
         return v;
       }));
 
