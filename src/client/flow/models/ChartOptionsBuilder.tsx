@@ -51,7 +51,15 @@ type FormItemSpec =
     name: string;
     labelKey: string;
     options: { labelKey?: string; label?: string; value: number }[];
-  };
+  }
+  | {
+    kind: 'multiselect';
+    name: string;
+    labelKey: string;
+    allowClear?: boolean;
+    placeholderKey?: string;
+    required?: boolean;
+  }
 
 export const ChartOptionsBuilder: React.FC<{
   columns?: string[];
@@ -158,7 +166,7 @@ function renderItem(
     return (
       <Form.Item
         key={spec.name}
-        label={renderLabel(t(spec.labelKey || spec.label || ''), lang)}
+        label={renderLabel(t(spec.labelKey), lang)}
         name={spec.name}
         required={spec.required}
       >

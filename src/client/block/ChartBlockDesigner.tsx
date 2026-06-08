@@ -33,7 +33,7 @@ export const ChartV2BlockDesigner: React.FC = () => {
   const { token } = useToken();
 
   return (
-    <GeneralSchemaDesigner title={t('Charts (Extensible)')} showDataSource={false}>
+    <GeneralSchemaDesigner title={t('Charts')} showDataSource={false}>
       <SchemaSettingsBlockTitleItem />
       <SchemaSettingsSwitchItem
         title={t('Show background')}

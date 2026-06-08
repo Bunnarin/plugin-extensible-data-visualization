@@ -84,7 +84,7 @@ export const ChartOptionsPanel: React.FC = observer(() => {
 
     return columns.map((column) => ({
       value: column,
-      label: queryColumnMap.get(column) || fieldTitleMap.get(column) || column,
+      label: column,
     }));
   }, [fieldTitleMap, previewColumns, query?.dimensions, query?.measures]);
 

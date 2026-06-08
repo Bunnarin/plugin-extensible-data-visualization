@@ -113,72 +113,125 @@ export const parseFieldAndAssociations = async (ctx: Context, next: Next) => {
   const collection = db.getCollection(collectionName);
   const fields = collection.fields;
   const associations = collection.model.associations;
-  const models: {
-    [target: string]: {
-      type: string;
-    };
-  } = {};
-  const parseField = (selected: { field: string | string[]; alias?: string }) => {
-    let target: string;
-    let name: string;
-    if (!Array.isArray(selected.field)) {
-      name = selected.field;
-    } else if (selected.field.length === 1) {
-      name = selected.field[0];
-    } else if (selected.field.length > 1) {
-      [target, name] = selected.field;
-    }
-    const rawAttributes = collection.model.getAttributes();
-    let field = rawAttributes[name]?.field || name;
-    let fieldType = fields.get(name)?.type;
-    let fieldOptions = fields.get(name)?.options;
-    if (target) {
-      const targetField = fields.get(target) as Field;
-      const targetCollection = db.getCollection(targetField.target);
-      const targetFields = targetCollection.fields;
-      fieldType = targetFields.get(name)?.type;
-      fieldOptions = targetFields.get(name)?.options;
-      field = `${target}.${field}`;
-      name = `${target}.${name}`;
-      const targetType = fields.get(target)?.type;
-      if (!models[target]) {
-        models[target] = { type: targetType };
+
+  // Nested include tree: supports multi-level associations like program.faculty.name
+  // Structure: { [assocName]: { type, children: { ... } } }
+  const includeTree: Record<string, { type: string; targetCollection: string; children: Record<string, any> }> = {};
+
+  const ensureIncludePath = (segments: string[], currentCollection: any, currentFields: any) => {
+    let tree = includeTree;
+    let col = currentCollection;
+    let flds = currentFields;
+
+    for (const seg of segments) {
+      if (!tree[seg]) {
+        const assocField = flds.get(seg) as Field;
+        const assocType = assocField?.type || 'belongsTo';
+        tree[seg] = { type: assocType, targetCollection: assocField?.target, children: {} };
       }
-    } else {
-      field = `${collectionName}.${field}`;
+      const targetCollectionName = tree[seg].targetCollection;
+      if (targetCollectionName) {
+        col = db.getCollection(targetCollectionName);
+        flds = col?.fields;
+      }
+      tree = tree[seg].children;
     }
+  };
+
+  const parseField = (selected: { field: string | string[]; alias?: string }) => {
+    let fieldPath: string[];
+    if (!Array.isArray(selected.field)) {
+      fieldPath = [selected.field];
+    } else {
+      fieldPath = selected.field;
+    }
+
+    if (fieldPath.length === 1) {
+      // Simple field on the root collection — no association
+      const name = fieldPath[0];
+      const rawAttributes = collection.model.getAttributes();
+      const field = `${collectionName}.${rawAttributes[name]?.field || name}`;
+      const fieldType = fields.get(name)?.type;
+      const fieldOptions = fields.get(name)?.options;
+      return {
+        ...selected,
+        field,
+        name,
+        type: fieldType,
+        options: fieldOptions,
+        alias: selected.alias || name,
+      };
+    }
+
+    // Multi-level association path, e.g. ['program', 'faculty', 'name']
+    // The last segment is the actual field; everything before is the association chain.
+    const assocSegments = fieldPath.slice(0, -1); // ['program', 'faculty']
+    const leafName = fieldPath[fieldPath.length - 1]; // 'name'
+
+    // Walk the association chain to find the final target collection and register includes
+    ensureIncludePath(assocSegments, collection, fields);
+
+    let currentCol = collection;
+    let currentFields = fields;
+    for (const seg of assocSegments) {
+      const assocField = currentFields.get(seg) as Field;
+      if (assocField?.target) {
+        currentCol = db.getCollection(assocField.target);
+        currentFields = currentCol.fields;
+      }
+    }
+
+    const leafFieldType = currentFields.get(leafName)?.type;
+    const leafFieldOptions = currentFields.get(leafName)?.options;
+    const leafRawField = currentCol.model.getAttributes()[leafName]?.field || leafName;
+
+    // For Sequelize col(): intermediate associations use ->, final association uses .
+    // e.g. for ['program', 'faculty', 'name']:  "program->faculty.name"
+    const colParts = assocSegments.length > 1
+      ? assocSegments.slice(0, -1).join('->') + '->' + assocSegments[assocSegments.length - 1]
+      : assocSegments[0];
+    const field = `${colParts}.${leafRawField}`;
+
+    const dotName = [...assocSegments, leafName].join('.');
+
     return {
       ...selected,
       field,
-      name,
-      type: fieldType,
-      options: fieldOptions,
-      alias: selected.alias || name,
+      name: dotName,
+      type: leafFieldType,
+      options: leafFieldOptions,
+      alias: selected.alias || dotName,
     };
   };
 
   const parsedMeasures = measures?.map(parseField) || [];
   const parsedDimensions = dimensions?.map(parseField) || [];
   const parsedOrders = orders?.map(parseField) || [];
-  const include = Object.entries(models).map(([target, { type }]) => {
-    let options = {
-      association: target,
-      attributes: [],
-    };
-    if (type === 'belongsToMany') {
-      options['through'] = { attributes: [] };
-    }
-    if (type === 'belongsToArray') {
-      const association = associations[target] as BelongsToArrayAssociation;
-      if (association) {
-        options = {
-          ...options,
-          ...association.generateInclude(),
-        };
+
+  // Convert the includeTree into Sequelize nested include format
+  const buildIncludes = (tree: Record<string, any>): any[] => {
+    return Object.entries(tree).map(([assocName, node]) => {
+      const options: any = {
+        association: assocName,
+        attributes: [],
+      };
+      if (node.type === 'belongsToMany') {
+        options.through = { attributes: [] };
       }
-    }
-    return options;
-  });
+      if (node.type === 'belongsToArray') {
+        const assoc = associations[assocName] as BelongsToArrayAssociation;
+        if (assoc) {
+          Object.assign(options, assoc.generateInclude());
+        }
+      }
+      const childIncludes = buildIncludes(node.children);
+      if (childIncludes.length > 0) {
+        options.include = childIncludes;
+      }
+      return options;
+    });
+  };
+  const include = buildIncludes(includeTree);
 
   const filterParser = new FilterParser(filter, {
     collection,

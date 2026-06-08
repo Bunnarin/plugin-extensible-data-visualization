@@ -34,19 +34,20 @@ export function getFieldOptions(dm: any, compile: (v: any) => string, collection
       value: field.name,
     };
 
-    if (depth < 1) {
+    if (depth < 2) {
       const children = iface.filterable?.children || [];
       if (children.length) {
         opt.children = children.map((c: any) => ({
           ...c,
           title: compile(c?.title ?? c?.name),
-          key: `${field.name}.${c.name}`,
+          key: `${value}.${c.name}`,
           value: c.name,
         }));
       }
       if (iface.filterable?.nested && field.target) {
         const targetFields = cm.getCollectionFields(field.target) || [];
-        const nested = targetFields.map((tf: any) => toOption(tf, depth + 1, field.name)).filter(Boolean);
+        // Pass the full accumulated `value` as prefix so deeper paths are correct (e.g. program.faculty.name)
+        const nested = targetFields.map((tf: any) => toOption(tf, depth + 1, value)).filter(Boolean);
         opt.children = [...(opt.children || []), ...nested];
       }
     }

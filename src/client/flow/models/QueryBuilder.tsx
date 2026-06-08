@@ -235,6 +235,7 @@ const QueryBuilderInner: FC<{
                         placeholder={t('Select Field')}
                         fieldNames={{ label: 'title', value: 'name', children: 'children' }}
                         options={fieldOptions}
+                        showSearch
                       />
                     </Form.Item>
                     <Form.Item name={[field.name, 'aggregation']} style={{ marginBottom: 0 }}>
@@ -303,6 +304,7 @@ const QueryBuilderInner: FC<{
                           placeholder={t('Select Field')}
                           fieldNames={{ label: 'title', value: 'name', children: 'children' }}
                           options={fieldOptions}
+                          showSearch
                         />
                       </Form.Item>
                       {fmtOptions?.length ? (

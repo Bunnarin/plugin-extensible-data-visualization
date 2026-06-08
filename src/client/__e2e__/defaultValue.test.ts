@@ -15,7 +15,7 @@ test.describe('defaultValue', () => {
 
     // 1. First, create a chart filter block and add a custom date field (date range)
     await page.getByLabel('schema-initializer-Grid-page:').hover();
-    await page.getByRole('menuitem', { name: 'line-chart Charts (Extensible)' }).click();
+    await page.getByRole('menuitem', { name: 'line-chart Charts' }).click();
     await page.getByLabel('schema-initializer-Grid-charts:addBlock').hover();
     await page.getByRole('menuitem', { name: 'Filter' }).click();
     await page.getByTestId('configure-fields-button-of-chart-filter-item').hover();

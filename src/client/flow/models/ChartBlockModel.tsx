@@ -407,7 +407,7 @@ const CancelButton = ({ style }) => {
 };
 
 ChartBlockModel.define({
-  label: tStr('Charts (Extensible)'),
+  label: tStr('Charts'),
 });
 
 ChartBlockModel.registerFlow({

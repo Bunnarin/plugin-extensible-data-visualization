@@ -342,7 +342,6 @@ ChartConfigure.Renderer = function Renderer(props) {
             style={{
               margin: '6px 12px 6px 0',
             }}
-            bordered={form.values.config?.bordered}
           >
             <ChartRendererContext.Provider value={{ collection, config, transform, service, data }}>
               <ChartRenderer {...props} />

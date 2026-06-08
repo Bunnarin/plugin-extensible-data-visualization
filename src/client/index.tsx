@@ -71,11 +71,11 @@ class PluginDataVisualiztionClient extends Plugin {
   fieldInterfaceConfigs: {
     [fieldInterface: string]: fieldInterfaceConfig;
   } = {
-    select: { valueFormatter },
-    multipleSelect: { valueFormatter },
-    radioGroup: { valueFormatter },
-    checkboxGroup: { valueFormatter },
-  };
+      select: { valueFormatter },
+      multipleSelect: { valueFormatter },
+      radioGroup: { valueFormatter },
+      checkboxGroup: { valueFormatter },
+    };
 
   registerFieldInterfaceConfig(key: string, config: fieldInterfaceConfig) {
     this.fieldInterfaceConfigs[key] = config;
@@ -83,7 +83,7 @@ class PluginDataVisualiztionClient extends Plugin {
 
   async load() {
     this.charts.addGroup('antd', { title: 'Ant Design', charts: antd });
-    this.charts.addGroup('ant-design-charts', { title: 'Ant Design Charts (Extensible)', charts: g2plot });
+    this.charts.addGroup('ant-design-charts', { title: 'Ant Design Charts', charts: g2plot });
 
     this.app.flowEngine.registerModels({ ChartBlockModel });
 
@@ -127,15 +127,15 @@ class PluginDataVisualiztionClient extends Plugin {
 
     const blockInitializers = this.app.schemaInitializerManager.get('page:addBlock');
     blockInitializers?.add('dataBlocks.chartV2', {
-      title: lang('Charts (Extensible)'),
+      title: lang('Charts'),
       Component: 'ChartV2BlockInitializer',
     });
     this.app.schemaInitializerManager.addItem('mobile:addBlock', 'dataBlocks.chartV2', {
-      title: lang('Charts (Extensible)'),
+      title: lang('Charts'),
       Component: 'ChartV2BlockInitializer',
     });
     this.app.schemaInitializerManager.addItem('popup:common:addBlock', 'dataBlocks.charts', {
-      title: '{{t("Charts (Extensible)")}}',
+      title: '{{t("Charts")}}',
       Component: 'ChartV2BlockInitializer',
     });
   }

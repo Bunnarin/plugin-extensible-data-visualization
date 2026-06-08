@@ -1,7 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { SheetComponent } from '@antv/s2-react';
 import '@antv/s2-react/dist/style.min.css';
-import type { S2DataConfig, S2Options } from '@antv/s2';
+import { copyData } from '@antv/s2';
+import type { S2DataConfig, S2Options, SpreadSheet } from '@antv/s2';
+import { Button } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 
 export type PivotTableProps = {
   data: Record<string, any>[];
@@ -24,17 +27,37 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   style,
   ...rest
 }) => {
+  const s2Ref = useRef<SpreadSheet>();
+
+  const handleDownload = () => {
+    if (!s2Ref.current) return;
+    try {
+      // copyData returns the formatted text. We use ',' for CSV compatibility with Excel.
+      const csvString = copyData(s2Ref.current, ',', false);
+      const blob = new Blob(['\ufeff' + csvString], { type: 'text/csv;charset=utf-8;' }); // \ufeff for Excel UTF-8 BOM
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'pivot-table.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to export CSV', err);
+    }
+  };
+
   // Pre-aggregate the data so S2 receives exactly one record per cell
   const aggregatedData = useMemo(() => {
     if (!data.length || (!rows.length && !columns.length)) return data;
 
     const grouped = new Map<string, any>();
-    
+
     data.forEach(row => {
       // Build a unique key for the row+col intersection
       const keyParts = [...rows, ...columns].map(f => row[f] ?? '');
       const key = keyParts.join('\x00');
-      
+
       if (!grouped.has(key)) {
         const initialItem = { ...row, _count: 1 };
         values.forEach(v => {
@@ -53,7 +76,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
           const val = Number(row[v]);
           const numVal = isNaN(val) ? 0 : val;
           const alias = `__val_${v}`;
-          
+
           if (aggregation === 'sum') item[alias] += numVal;
           if (aggregation === 'count') item[alias] += 1;
           if (aggregation === 'min') item[alias] = Math.min(item[alias], numVal);
@@ -72,12 +95,12 @@ export const PivotTable: React.FC<PivotTableProps> = ({
         });
       });
     }
-    
+
     return result;
   }, [data, rows, columns, values, aggregation]);
 
   const s2Values = useMemo(() => values.map(v => `__val_${v}`), [values]);
-  
+
   const dataCfg: S2DataConfig = useMemo(() => {
     const finalFieldLabels = { ...fieldLabels };
     values.forEach(v => {
@@ -114,8 +137,15 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   }
 
   return (
-    <div style={{ width: '100%', ...style }}>
-      <SheetComponent dataCfg={dataCfg} options={options} sheetType="pivot" adaptive={{ width: true, height: false }} />
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, ...style }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+        <Button size="small" icon={<DownloadOutlined />} onClick={handleDownload}>
+          Export CSV
+        </Button>
+      </div>
+      <div style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
+        <SheetComponent ref={s2Ref as any} dataCfg={dataCfg} options={options as any} sheetType="pivot" adaptive={{ width: true, height: false }} />
+      </div>
     </div>
   );
 };

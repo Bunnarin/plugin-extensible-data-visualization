@@ -107,7 +107,6 @@ export const QueryPanel: React.FC = observer(() => {
   // };
 
   const handleRunQuery = async () => {
-    console.log('---handleRunQuery', form.values?.query);
     try {
       setRunning(true);
       // 触发下层 QueryBuilder 的校验
