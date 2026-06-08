@@ -5,6 +5,7 @@ import { copyData } from '@antv/s2';
 import type { S2DataConfig, S2Options, SpreadSheet } from '@antv/s2';
 import { Button } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
+import * as XLSX from 'xlsx';
 
 export type PivotTableProps = {
   data: Record<string, any>[];
@@ -32,18 +33,72 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   const handleDownload = () => {
     if (!s2Ref.current) return;
     try {
-      // copyData returns the formatted text. We use ',' for CSV compatibility with Excel.
-      const csvString = copyData(s2Ref.current, ',', false);
-      const blob = new Blob(['\ufeff' + csvString], { type: 'text/csv;charset=utf-8;' }); // \ufeff for Excel UTF-8 BOM
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'pivot-table.csv');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Get raw TSV data from S2
+      const tsvString = copyData(s2Ref.current, '\t', false);
+      const headerRowCount = columns.length + (values.length > 1 || !columns.length ? 1 : 0);
+      const rowHeaderColCount = rows.length;
+
+      const grid = tsvString.split(/\r?\n/).map((line, rIndex) => line.split('\t').map((c, cIndex) => {
+        let v: string | number = c.replace(/^"|"$/g, '');
+        const isDataCell = rIndex >= headerRowCount && cIndex >= rowHeaderColCount;
+        
+        if (isDataCell && (v === 'null' || v === '-')) v = 0;
+        else if (v !== '' && !isNaN(Number(v))) v = Number(v);
+        
+        return v;
+      }));
+
+      // Build merges for Excel
+      const merges: XLSX.Range[] = [];
+
+      // Vertical merges in row headers
+      for (let c = 0; c < rowHeaderColCount; c++) {
+        let startR = headerRowCount;
+        for (let r = headerRowCount + 1; r < grid.length; r++) {
+          const val = grid[r][c];
+          const prevVal = grid[startR][c];
+          if (val !== prevVal && val !== '') {
+            if (r - 1 > startR) {
+              merges.push({ s: { r: startR, c }, e: { r: r - 1, c } });
+              // Clear duplicate values so Excel merges beautifully
+              for (let i = startR + 1; i < r; i++) grid[i][c] = '';
+            }
+            startR = r;
+          }
+        }
+        if (grid.length - 1 > startR) {
+          merges.push({ s: { r: startR, c }, e: { r: grid.length - 1, c } });
+          for (let i = startR + 1; i < grid.length; i++) grid[i][c] = '';
+        }
+      }
+
+      // Horizontal merges in col headers
+      for (let r = 0; r < headerRowCount; r++) {
+        let startC = rowHeaderColCount;
+        for (let c = rowHeaderColCount + 1; c < grid[r].length; c++) {
+          const val = grid[r][c];
+          const prevVal = grid[r][startC];
+          if (val !== prevVal && val !== '') {
+            if (c - 1 > startC) {
+              merges.push({ s: { r, c: startC }, e: { r, c: c - 1 } });
+              for (let i = startC + 1; i < c; i++) grid[r][i] = '';
+            }
+            startC = c;
+          }
+        }
+        if (grid[r].length - 1 > startC) {
+          merges.push({ s: { r, c: startC }, e: { r, c: grid[r].length - 1 } });
+          for (let i = startC + 1; i < grid[r].length; i++) grid[r][i] = '';
+        }
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(grid);
+      ws['!merges'] = merges;
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Pivot Table');
+      XLSX.writeFile(wb, 'pivot-table.xlsx');
     } catch (err) {
-      console.error('Failed to export CSV', err);
+      console.error('Failed to export Excel', err);
     }
   };
 
@@ -126,6 +181,18 @@ export const PivotTable: React.FC<PivotTableProps> = ({
         selectedCellsSpotlight: true,
         hoverHighlight: true,
       },
+      totals: {
+        row: {
+          subTotalsDimensions: rows,
+          reverseLayout: true,
+          reverseSubLayout: true,
+        },
+        col: {
+          subTotalsDimensions: columns,
+          reverseLayout: true,
+          reverseSubLayout: true,
+        },
+      },
       ...rest,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -140,7 +207,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, ...style }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
         <Button size="small" icon={<DownloadOutlined />} onClick={handleDownload}>
-          Export CSV
+          Export Excel
         </Button>
       </div>
       <div style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
