@@ -16,7 +16,7 @@ export function FilterDynamicComponent(props) {
   const options = useVariableOptions();
 
   return (
-    <Variable.Input value={value} onChange={onChange} scope={options}>
+    <Variable.Input value={value} onChange={onChange} scope={options as any}>
       {renderSchemaComponent()}
     </Variable.Input>
   );

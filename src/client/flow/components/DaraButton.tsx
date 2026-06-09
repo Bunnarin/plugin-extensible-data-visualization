@@ -10,6 +10,7 @@
 import React from 'react';
 import { useT } from '../../locale';
 import { Avatar, Popover } from 'antd';
+// @ts-ignore
 import {
   useChatMessagesStore,
   useAIConfigRepository,

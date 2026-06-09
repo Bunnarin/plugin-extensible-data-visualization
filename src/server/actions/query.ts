@@ -16,6 +16,7 @@ import { QueryParams } from '../types';
 import { createQueryParser } from '../query-parser';
 import { assign } from '@nocobase/utils';
 import { checkFilterParams, NoPermissionError } from '@nocobase/acl';
+// @ts-ignore
 import { resolveVariablesTemplate } from '@nocobase/plugin-flow-engine';
 
 const getDB = (ctx: Context, dataSource: string) => {

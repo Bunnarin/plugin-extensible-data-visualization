@@ -141,7 +141,7 @@ export const ChartFilterCustomItemInitializer: React.FC<{
           <FormLayout layout={'vertical'}>
             <Alert
               type="info"
-              message={t('To filter with custom fields, use "Current filter" variables in the chart configuration.')}
+              message={t('To filter with custom fields, use "Current filter" variables in the chart configuration.') as any}
               style={{ marginBottom: 16 }}
             />
             <ConfigProvider locale={locale}>

@@ -26,6 +26,7 @@ import { ChartResource } from '../resources/ChartResource';
 import { genRawByBuilder } from './ChartOptionsBuilder.service';
 import { chartFlowRegistry } from './ChartOptionsBuilder.service';
 import { configStore } from './config-store';
+// @ts-ignore
 import { useChatBoxStore, useChatMessagesStore } from '@nocobase/plugin-ai/client';
 
 const NO_PREVIEW_SNAPSHOT = Symbol('NO_PREVIEW_SNAPSHOT');
