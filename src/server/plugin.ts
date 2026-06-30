@@ -22,10 +22,10 @@ export class PluginDataVisualizationServer extends Plugin {
     this.app.resourceManager.define({
       name: 'charts',
       actions: {
-        query,
+        queryData: query,
       },
     });
-    this.app.acl.allow('charts', 'query', 'loggedIn');
+    this.app.acl.allow('charts', 'queryData', 'loggedIn');
   }
 
   async load() {

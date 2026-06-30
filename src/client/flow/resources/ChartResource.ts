@@ -19,7 +19,7 @@ export class ChartResource<TData = any> extends BaseRecordResource<TData> {
   private refreshTimer: NodeJS.Timeout | null = null;
 
   protected request = {
-    url: 'charts:query',
+    url: 'charts:queryData',
     method: 'post',
     params: {} as Record<string, any>,
     data: {} as Record<string, any>,
