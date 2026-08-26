@@ -1,9 +1,9 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { Button, message, Switch } from 'antd';
 import { SheetComponent } from '@antv/s2-react';
 import '@antv/s2-react/dist/style.min.css';
-import { copyData } from '@antv/s2';
 import type { S2DataConfig, S2Options, SpreadSheet } from '@antv/s2';
-import { Button, message } from 'antd';
+import { copyData, S2Event } from '@antv/s2';
 import { DownloadOutlined, CopyOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
 
@@ -41,6 +41,58 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   ...rest
 }) => {
   const s2Ref = useRef<SpreadSheet>();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const [rowSubTotalsOn, setRowSubTotalsOn] = useState(showRowSubTotals);
+  const [colSubTotalsOn, setColSubTotalsOn] = useState(showColSubTotals);
+  useEffect(() => setRowSubTotalsOn(showRowSubTotals), [showRowSubTotals]);
+  useEffect(() => setColSubTotalsOn(showColSubTotals), [showColSubTotals]);
+
+  // Available width of the page/container we're allowed to fill
+  const [containerWidth, setContainerWidth] = useState<number>();
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width;
+      if (w) setContainerWidth(Math.floor(w));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Natural width the table actually needs, measured from S2 after each layout pass
+  const [contentWidth, setContentWidth] = useState<number>();
+  useEffect(() => {
+    const sheet = s2Ref.current;
+    if (!sheet) return;
+    const measure = () => {
+      try {
+        const { layoutResult } = sheet.facet;
+        const rowsWidth = layoutResult?.rowsHierarchy?.width ?? 0;
+        const colsWidth = layoutResult?.colsHierarchy?.width ?? 0;
+        const natural = Math.ceil(rowsWidth + colsWidth);
+        if (natural > 0) {
+          setContentWidth((prev) => (prev === natural ? prev : natural));
+        }
+      } catch {
+        // ignore measurement errors
+      }
+    };
+    sheet.on(S2Event.LAYOUT_AFTER_RENDER, measure);
+    return () => {
+      sheet.off(S2Event.LAYOUT_AFTER_RENDER, measure);
+    };
+  }, []);
+
+  // Until content width is known, default to full container width (avoids the
+  // "stuck at S2's 600px default" bug). Once known, hug content but never
+  // exceed the available container width.
+  const effectiveWidth = useMemo(() => {
+    if (!containerWidth) return contentWidth;
+    if (!contentWidth) return containerWidth;
+    return Math.min(contentWidth, containerWidth);
+  }, [containerWidth, contentWidth]);
 
   const buildGridAndMerges = () => {
     if (!s2Ref.current) return null;
@@ -164,14 +216,12 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     }
   };
 
-  // Pre-aggregate the data so S2 receives exactly one record per cell
   const aggregatedData = useMemo(() => {
     if (!data.length || (!rows.length && !columns.length)) return data;
 
     const grouped = new Map<string, any>();
 
     data.forEach(row => {
-      // Build a unique key for the row+col intersection
       const keyParts = [...rows, ...columns].map(f => row[f] ?? '');
       const key = keyParts.join('\x00');
 
@@ -198,7 +248,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
           if (aggregation === 'count') item[alias] += 1;
           if (aggregation === 'min') item[alias] = Math.min(item[alias], numVal);
           if (aggregation === 'max') item[alias] = Math.max(item[alias], numVal);
-          if (aggregation === 'avg') item[alias] += numVal; // We'll divide by count later
+          if (aggregation === 'avg') item[alias] += numVal;
         });
       }
     });
@@ -239,16 +289,14 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     const s2Aggregation = (aggregation === 'avg' ? 'AVG' : aggregation === 'min' ? 'MIN' : aggregation === 'max' ? 'MAX' : 'SUM') as any;
 
     return {
-      width: undefined,
+      width: effectiveWidth,
       height: 480,
-      interaction: {
-        selectedCellsSpotlight: true,
-        hoverHighlight: true,
-      },
+      style: { layoutWidthType: 'compact' },
+      interaction: { selectedCellsSpotlight: true, hoverHighlight: true },
       totals: {
         row: {
           showGrandTotals: showRowTotals,
-          showSubTotals: showRowSubTotals,
+          showSubTotals: rowSubTotalsOn,
           subTotalsDimensions: rowSubTotalsDimensions.length > 0 ? rowSubTotalsDimensions : rows,
           reverseLayout: false,
           reverseSubLayout: false,
@@ -259,7 +307,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
         },
         col: {
           showGrandTotals: showColTotals,
-          showSubTotals: showColSubTotals,
+          showSubTotals: colSubTotalsOn,
           subTotalsDimensions: colSubTotalsDimensions.length > 0 ? colSubTotalsDimensions : columns,
           reverseLayout: false,
           reverseSubLayout: false,
@@ -272,35 +320,37 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       ...rest,
     };
   }, [
-    rest,
-    showRowTotals,
-    showRowSubTotals,
-    rowSubTotalsDimensions,
-    rows,
-    showColTotals,
-    showColSubTotals,
-    colSubTotalsDimensions,
-    columns,
-    aggregation,
-  ]
-  );
+    rest, effectiveWidth, showRowTotals, rowSubTotalsOn, rowSubTotalsDimensions, rows,
+    showColTotals, colSubTotalsOn, colSubTotalsDimensions, columns, aggregation,
+  ]);
 
   if (!rows.length && !values.length) {
     return <div style={{ padding: 16, color: '#888' }}>Configure rows and values to display the pivot table.</div>;
   }
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, ...style }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', gap: 8 }}>
-        <Button size="small" icon={<CopyOutlined />} onClick={handleCopy}>
-          Copy to Excel
-        </Button>
-        <Button size="small" icon={<DownloadOutlined />} onClick={handleDownload}>
-          Export Excel
-        </Button>
+    <div ref={containerRef} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, ...style }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', width: '100%', gap: 12 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          <Switch size="small" checked={rowSubTotalsOn} onChange={setRowSubTotalsOn} disabled={!rows.length} />
+          Row subtotals
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          <Switch size="small" checked={colSubTotalsOn} onChange={setColSubTotalsOn} disabled={!columns.length} />
+          Column subtotals
+        </label>
+        <div style={{ flex: 1 }} />
+        <Button size="small" icon={<CopyOutlined />} onClick={handleCopy}>Copy to Excel</Button>
+        <Button size="small" icon={<DownloadOutlined />} onClick={handleDownload}>Export Excel</Button>
       </div>
-      <div style={{ flex: 1, width: '100%', overflow: 'hidden' }}>
-        <SheetComponent ref={s2Ref as any} dataCfg={dataCfg} options={options as any} sheetType="pivot" adaptive={{ width: true, height: false }} />
+      <div style={{ width: effectiveWidth ? `${effectiveWidth}px` : '100%', overflow: 'hidden' }}>
+        <SheetComponent
+          ref={s2Ref as any}
+          dataCfg={dataCfg}
+          options={options as any}
+          sheetType="pivot"
+          adaptive={{ width: false, height: false }}
+        />
       </div>
     </div>
   );
