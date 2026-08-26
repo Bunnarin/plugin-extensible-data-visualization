@@ -29,6 +29,42 @@ export class PivotTableChart extends Chart {
           title: 'Values',
           required: false,
         },
+        {
+          configType: 'field',
+          name: 'showRowTotals',
+          title: 'Row Grand Totals',
+          required: false,
+        },
+        {
+          configType: 'field',
+          name: 'showRowSubTotals',
+          title: 'Row Sub Totals',
+          required: false,
+        },
+        {
+          configType: 'field',
+          name: 'rowSubTotalsDimensions',
+          title: 'Row Sub Total Dimensions',
+          required: false,
+        },
+        {
+          configType: 'field',
+          name: 'showColTotals',
+          title: 'Column Grand Totals',
+          required: false,
+        },
+        {
+          configType: 'field',
+          name: 'showColSubTotals',
+          title: 'Column Sub Totals',
+          required: false,
+        },
+        {
+          configType: 'field',
+          name: 'colSubTotalsDimensions',
+          title: 'Column Sub Total Dimensions',
+          required: false,
+        },
       ],
     });
   }
@@ -65,6 +101,50 @@ export class PivotTableChart extends Chart {
           'x-component-props': { mode: 'multiple', allowClear: true },
           'x-reactions': '{{ useChartFields }}',
         },
+        showRowTotals: {
+          title: 'Row Grand Totals',
+          type: 'boolean',
+          'x-decorator': 'FormItem',
+          'x-component': 'Checkbox',
+          'x-content': 'Show Row Grand Totals',
+        },
+        showRowSubTotals: {
+          title: 'Row Sub Totals',
+          type: 'boolean',
+          'x-decorator': 'FormItem',
+          'x-component': 'Checkbox',
+          'x-content': 'Show Row Sub Totals',
+        },
+        rowSubTotalsDimensions: {
+          title: 'Row Sub Total Dimensions',
+          type: 'array',
+          'x-decorator': 'FormItem',
+          'x-component': 'Select',
+          'x-component-props': { mode: 'multiple', allowClear: true, placeholder: 'Leave empty for all rows' },
+          'x-reactions': '{{ useChartFields }}',
+        },
+        showColTotals: {
+          title: 'Column Grand Totals',
+          type: 'boolean',
+          'x-decorator': 'FormItem',
+          'x-component': 'Checkbox',
+          'x-content': 'Show Column Grand Totals',
+        },
+        showColSubTotals: {
+          title: 'Column Sub Totals',
+          type: 'boolean',
+          'x-decorator': 'FormItem',
+          'x-component': 'Checkbox',
+          'x-content': 'Show Column Sub Totals',
+        },
+        colSubTotalsDimensions: {
+          title: 'Column Sub Total Dimensions',
+          type: 'array',
+          'x-decorator': 'FormItem',
+          'x-component': 'Select',
+          'x-component-props': { mode: 'multiple', allowClear: true, placeholder: 'Leave empty for all columns' },
+          'x-reactions': '{{ useChartFields }}',
+        },
       },
     };
   }
@@ -99,6 +179,12 @@ export class PivotTableChart extends Chart {
       columns,
       values,
       fieldLabels,
+      showRowTotals: general?.showRowTotals,
+      showRowSubTotals: general?.showRowSubTotals,
+      rowSubTotalsDimensions: general?.rowSubTotalsDimensions,
+      showColTotals: general?.showColTotals,
+      showColSubTotals: general?.showColSubTotals,
+      colSubTotalsDimensions: general?.colSubTotalsDimensions,
       ...advanced,
     };
   }

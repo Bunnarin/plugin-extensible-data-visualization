@@ -3,8 +3,8 @@ import { SheetComponent } from '@antv/s2-react';
 import '@antv/s2-react/dist/style.min.css';
 import { copyData } from '@antv/s2';
 import type { S2DataConfig, S2Options, SpreadSheet } from '@antv/s2';
-import { Button } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
+import { Button, message } from 'antd';
+import { DownloadOutlined, CopyOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
 
 export type PivotTableProps = {
@@ -14,6 +14,12 @@ export type PivotTableProps = {
   values?: string[];
   aggregation?: 'sum' | 'count' | 'avg' | 'min' | 'max';
   fieldLabels?: Record<string, string>;
+  showRowTotals?: boolean;
+  showRowSubTotals?: boolean;
+  rowSubTotalsDimensions?: string[];
+  showColTotals?: boolean;
+  showColSubTotals?: boolean;
+  colSubTotalsDimensions?: string[];
   style?: React.CSSProperties;
   [key: string]: any;
 };
@@ -26,73 +32,82 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   aggregation = 'sum',
   fieldLabels = {},
   style,
+  showRowTotals = false,
+  showRowSubTotals = false,
+  rowSubTotalsDimensions = [],
+  showColTotals = false,
+  showColSubTotals = false,
+  colSubTotalsDimensions = [],
   ...rest
 }) => {
   const s2Ref = useRef<SpreadSheet>();
 
+  const buildGridAndMerges = () => {
+    if (!s2Ref.current) return null;
+    const tsvString = copyData(s2Ref.current, '\t', false);
+    const headerRowCount = columns.length + (values.length > 1 || !columns.length ? 1 : 0);
+    const rowHeaderColCount = rows.length;
+
+    const grid = tsvString.split(/\r?\n/).map((line, rIndex) => line.split('\t').map((c, cIndex) => {
+      let v: string | number = c.replace(/^"|"$/g, '');
+      const isDataCell = rIndex >= headerRowCount && cIndex >= rowHeaderColCount;
+
+      if (isDataCell && (v === 'null' || v === '-')) v = 0;
+      else if (v === 'null') v = 'N/A';
+      else if (v !== '' && !isNaN(Number(v))) v = Number(v);
+
+      return v;
+    }));
+
+    const merges: XLSX.Range[] = [];
+
+    for (let c = 0; c < rowHeaderColCount; c++) {
+      let startR = headerRowCount;
+      for (let r = headerRowCount + 1; r < grid.length; r++) {
+        const val = grid[r][c];
+        const prevVal = grid[startR][c];
+        if (val !== prevVal && val !== '') {
+          if (r - 1 > startR) {
+            merges.push({ s: { r: startR, c }, e: { r: r - 1, c } });
+            for (let i = startR + 1; i < r; i++) grid[i][c] = '';
+          }
+          startR = r;
+        }
+      }
+      if (grid.length - 1 > startR) {
+        merges.push({ s: { r: startR, c }, e: { r: grid.length - 1, c } });
+        for (let i = startR + 1; i < grid.length; i++) grid[i][c] = '';
+      }
+    }
+
+    for (let r = 0; r < headerRowCount; r++) {
+      let startC = rowHeaderColCount;
+      for (let c = rowHeaderColCount + 1; c < grid[r].length; c++) {
+        const val = grid[r][c];
+        const prevVal = grid[r][startC];
+        if (val !== prevVal && val !== '') {
+          if (c - 1 > startC) {
+            merges.push({ s: { r, c: startC }, e: { r, c: c - 1 } });
+            for (let i = startC + 1; i < c; i++) grid[r][i] = '';
+          }
+          startC = c;
+        }
+      }
+      if (grid[r].length - 1 > startC) {
+        merges.push({ s: { r, c: startC }, e: { r, c: grid[r].length - 1 } });
+        for (let i = startC + 1; i < grid[r].length; i++) grid[r][i] = '';
+      }
+    }
+
+    return { grid, merges };
+  };
+
   const handleDownload = () => {
-    if (!s2Ref.current) return;
     try {
-      // Get raw TSV data from S2
-      const tsvString = copyData(s2Ref.current, '\t', false);
-      const headerRowCount = columns.length + (values.length > 1 || !columns.length ? 1 : 0);
-      const rowHeaderColCount = rows.length;
+      const data = buildGridAndMerges();
+      if (!data) return;
 
-      const grid = tsvString.split(/\r?\n/).map((line, rIndex) => line.split('\t').map((c, cIndex) => {
-        let v: string | number = c.replace(/^"|"$/g, '');
-        const isDataCell = rIndex >= headerRowCount && cIndex >= rowHeaderColCount;
-
-        if (isDataCell && (v === 'null' || v === '-')) v = 0;
-        else if (v === 'null') v = 'N/A';
-        else if (v !== '' && !isNaN(Number(v))) v = Number(v);
-
-        return v;
-      }));
-
-      // Build merges for Excel
-      const merges: XLSX.Range[] = [];
-
-      // Vertical merges in row headers
-      for (let c = 0; c < rowHeaderColCount; c++) {
-        let startR = headerRowCount;
-        for (let r = headerRowCount + 1; r < grid.length; r++) {
-          const val = grid[r][c];
-          const prevVal = grid[startR][c];
-          if (val !== prevVal && val !== '') {
-            if (r - 1 > startR) {
-              merges.push({ s: { r: startR, c }, e: { r: r - 1, c } });
-              // Clear duplicate values so Excel merges beautifully
-              for (let i = startR + 1; i < r; i++) grid[i][c] = '';
-            }
-            startR = r;
-          }
-        }
-        if (grid.length - 1 > startR) {
-          merges.push({ s: { r: startR, c }, e: { r: grid.length - 1, c } });
-          for (let i = startR + 1; i < grid.length; i++) grid[i][c] = '';
-        }
-      }
-
-      // Horizontal merges in col headers
-      for (let r = 0; r < headerRowCount; r++) {
-        let startC = rowHeaderColCount;
-        for (let c = rowHeaderColCount + 1; c < grid[r].length; c++) {
-          const val = grid[r][c];
-          const prevVal = grid[r][startC];
-          if (val !== prevVal && val !== '') {
-            if (c - 1 > startC) {
-              merges.push({ s: { r, c: startC }, e: { r, c: c - 1 } });
-              for (let i = startC + 1; i < c; i++) grid[r][i] = '';
-            }
-            startC = c;
-          }
-        }
-        if (grid[r].length - 1 > startC) {
-          merges.push({ s: { r, c: startC }, e: { r, c: grid[r].length - 1 } });
-          for (let i = startC + 1; i < grid[r].length; i++) grid[r][i] = '';
-        }
-      }
-
+      const { grid, merges } = data;
       const ws = XLSX.utils.aoa_to_sheet(grid);
       ws['!merges'] = merges;
       const wb = XLSX.utils.book_new();
@@ -100,6 +115,52 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       XLSX.writeFile(wb, 'pivot-table.xlsx');
     } catch (err) {
       console.error('Failed to export Excel', err);
+    }
+  };
+
+  const handleCopy = () => {
+    try {
+      const data = buildGridAndMerges();
+      if (!data) return;
+
+      const { grid, merges } = data;
+      const ws = XLSX.utils.aoa_to_sheet(grid);
+      ws['!merges'] = merges;
+
+      const tableHTML = XLSX.utils.sheet_to_html(ws);
+      const fullHTML = `
+          <html xmlns:o='urn:schemas-microsoft-com:office:office'
+              xmlns:w='urn:schemas-microsoft-com:office:excel'
+              xmlns='https://www.w3.org/TR/html40'>
+              <head>
+                  <meta charset='utf-8'>
+                  <style>
+                      @page Section1 {
+                          size: 841.9pt 595.3pt;
+                          mso-page-orientation: landscape;
+                          margin: 1in 1in 1in 1in;
+                      }
+                      div.Section1 { page: Section1; }
+                      table { border-collapse: collapse; }
+                      td, th { border: 1px solid #ddd; padding: 4px; }
+                  </style>
+              </head>
+              <body>
+                  <div class="Section1">
+                      ${tableHTML}
+                  </div>
+              </body>
+          </html>
+      `;
+
+      navigator.clipboard.writeText(fullHTML).then(() => {
+        message.success('Table copied to clipboard');
+      }).catch(err => {
+        console.error('Clipboard write failed', err);
+        message.error('Failed to copy to clipboard');
+      });
+    } catch (err) {
+      console.error('Failed to copy', err);
     }
   };
 
@@ -174,8 +235,10 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     };
   }, [aggregatedData, rows, columns, values, s2Values, fieldLabels]);
 
-  const options: S2Options = useMemo(
-    () => ({
+  const options: S2Options = useMemo(() => {
+    const s2Aggregation = (aggregation === 'avg' ? 'AVG' : aggregation === 'min' ? 'MIN' : aggregation === 'max' ? 'MAX' : 'SUM') as any;
+
+    return {
       width: undefined,
       height: 480,
       interaction: {
@@ -184,20 +247,42 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       },
       totals: {
         row: {
-          subTotalsDimensions: rows,
-          reverseLayout: true,
-          reverseSubLayout: true,
+          showGrandTotals: showRowTotals,
+          showSubTotals: showRowSubTotals,
+          subTotalsDimensions: rowSubTotalsDimensions.length > 0 ? rowSubTotalsDimensions : rows,
+          reverseLayout: false,
+          reverseSubLayout: false,
+          label: 'Total',
+          subLabel: 'Total',
+          calcTotals: { aggregation: s2Aggregation },
+          calcSubTotals: { aggregation: s2Aggregation },
         },
         col: {
-          subTotalsDimensions: columns,
-          reverseLayout: true,
-          reverseSubLayout: true,
+          showGrandTotals: showColTotals,
+          showSubTotals: showColSubTotals,
+          subTotalsDimensions: colSubTotalsDimensions.length > 0 ? colSubTotalsDimensions : columns,
+          reverseLayout: false,
+          reverseSubLayout: false,
+          label: 'Total',
+          subLabel: 'Total',
+          calcTotals: { aggregation: s2Aggregation },
+          calcSubTotals: { aggregation: s2Aggregation },
         },
       },
       ...rest,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rest],
+    };
+  }, [
+    rest,
+    showRowTotals,
+    showRowSubTotals,
+    rowSubTotalsDimensions,
+    rows,
+    showColTotals,
+    showColSubTotals,
+    colSubTotalsDimensions,
+    columns,
+    aggregation,
+  ]
   );
 
   if (!rows.length && !values.length) {
@@ -206,7 +291,10 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8, ...style }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', gap: 8 }}>
+        <Button size="small" icon={<CopyOutlined />} onClick={handleCopy}>
+          Copy to Excel
+        </Button>
         <Button size="small" icon={<DownloadOutlined />} onClick={handleDownload}>
           Export Excel
         </Button>
