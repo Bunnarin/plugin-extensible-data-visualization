@@ -280,7 +280,16 @@ export const parseVariables = async (ctx: Context, next: Next) => {
 
   const { filter } = ctx.action.params.values;
   ctx.action.params.filter = filter;
+  // Temporarily set resourceName to the actual collection so that
+  // parseVariables/parseFilter can correctly resolve field types
+  // (e.g., dateOnly fields). Without this, getField looks up
+  // "charts.<field>" which doesn't exist, causing dateOnly fields
+  // to be treated as regular datetime fields with incorrect timezone handling.
+  const originalResourceName = ctx.action.resourceName;
+  const { collection: collectionName } = ctx.action.params.values as QueryParams;
+  ctx.action.resourceName = collectionName;
   await middlewares.parseVariables(ctx, async () => {
+    ctx.action.resourceName = originalResourceName;
     ctx.action.params.values.filter = ctx.action.params.filter;
     await next();
   });
