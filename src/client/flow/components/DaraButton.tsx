@@ -1,4 +1,4 @@
-/**
+﻿/**
  * This file is part of the NocoBase (R) project.
  * Copyright (c) 2020-2024 NocoBase Co., Ltd.
  * Authors: NocoBase Team.
@@ -11,19 +11,25 @@ import React from 'react';
 import { useT } from '../../locale';
 import { Avatar, Popover } from 'antd';
 // @ts-ignore
-import {
+import aiClientModule from '@nocobase/plugin-ai/client';
+import type { EditorRef } from '@nocobase/client';
+import { observer } from '@nocobase/flow-engine';
+import type { FlowSettingsContext } from '@nocobase/flow-engine';
+
+// Safely extract stores from the AI module — it may be undefined if the plugin
+// version at runtime doesn't expose these exports (e.g. after a plugin update).
+const {
   useChatMessagesStore,
   useAIConfigRepository,
   useChatBoxStore,
   useChatBoxActions,
   ProfileCard,
   avatars,
-} from '@nocobase/plugin-ai/client';
-import type { EditorRef } from '@nocobase/client';
-import { observer } from '@nocobase/flow-engine';
-import type { FlowSettingsContext } from '@nocobase/flow-engine';
+} = (aiClientModule as any) || {};
 
-export const DaraButton: React.FC<{ ctx: FlowSettingsContext<any> }> = observer(({ ctx }) => {
+const hasAISupport = Boolean(useChatMessagesStore?.use?.setEditorRef);
+
+const DaraButtonInner: React.FC<{ ctx: FlowSettingsContext<any> }> = ({ ctx }) => {
   const t = useT();
   const aiConfigRepository = useAIConfigRepository();
   const aiEmployees = aiConfigRepository.aiEmployees;
@@ -71,7 +77,6 @@ export const DaraButton: React.FC<{ ctx: FlowSettingsContext<any> }> = observer(
         const isEvents = /chart\.(on|off)\s*\(|ctx\.\w+\s*\(/.test(content) && !/\breturn\s*\{/.test(content);
 
         if (isSql) {
-          // 从注释中提取数据源
           const dsMatch = content.match(/^--\s*dataSource:\s*(\S+)/i);
           const dataSource = dsMatch ? dsMatch[1] : undefined;
           return ctx.writeSql(content, dataSource);
@@ -165,6 +170,15 @@ export const DaraButton: React.FC<{ ctx: FlowSettingsContext<any> }> = observer(
       />
     </Popover>
   );
+};
+
+export const DaraButton: React.FC<{ ctx: FlowSettingsContext<any> }> = observer(({ ctx }) => {
+  // Guard: if the AI plugin stores are not available at runtime (version mismatch),
+  // silently render nothing instead of crashing the chart settings panel.
+  if (!hasAISupport) {
+    return null;
+  }
+  return <DaraButtonInner ctx={ctx} />;
 });
 
 export default DaraButton;
