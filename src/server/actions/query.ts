@@ -1,4 +1,4 @@
-/**
+﻿/**
  * This file is part of the NocoBase (R) project.
  * Copyright (c) 2020-2024 NocoBase Co., Ltd.
  * Authors: NocoBase Team.
@@ -148,7 +148,7 @@ export const parseFieldAndAssociations = async (ctx: Context, next: Next) => {
     }
 
     if (fieldPath.length === 1) {
-      // Simple field on the root collection — no association
+      // Simple field on the root collection â€” no association
       const name = fieldPath[0];
       const rawAttributes = collection.model.getAttributes();
       const field = `${collectionName}.${rawAttributes[name]?.field || name}`;
@@ -356,3 +356,4 @@ export const query = async (ctx: Context, next: Next) => {
     ctx.throw(500, err);
   }
 };
+

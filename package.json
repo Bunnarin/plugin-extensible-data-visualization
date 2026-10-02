@@ -1,6 +1,6 @@
 {
   "name": "@bunnarin/plugin-extensible-data-visualization",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "displayName": "Extensible Data visualization",
   "displayName.ru-RU": "Визуализация данных",
   "displayName.zh-CN": "数据可视化",

@@ -420,7 +420,6 @@ ChartBlockModel.registerFlow({
       uiMode: (ctx) => ({
         type: 'embed',
         props: {
-          minWidth: '400px',
           onClose: () => {
             const aiOpen = useChatBoxStore.getState().open;
             const associatedUid = useChatMessagesStore.getState().currentEditorRefUid;
